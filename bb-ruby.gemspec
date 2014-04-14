@@ -14,4 +14,6 @@ Gem::Specification.new do |gem|
   gem.name          = "bb-ruby"
   gem.require_paths = ["lib"]
   gem.version       = BBRuby::VERSION
+
+  gem.add_development_dependency "rake"
 end
