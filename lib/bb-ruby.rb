@@ -1,5 +1,3 @@
-require "bb-ruby/version"
-
 module BBRuby
   # allowable image formats
   @@imageformats = 'png|bmp|jpg|gif|jpeg'
@@ -10,7 +8,7 @@ module BBRuby
     # tag name => [regex, replace, description, example, enable/disable symbol]
     'Bold' => [
       /\[b(:.*)?\](.*?)\[\/b\1?\]/mi,
-      '<strong>\2</strong>',
+      '<strong>\2</strong>', #Proc alternative for example: lambda{ |e| "<strong>#{e[2]}</strong>" }
       'Embolden text',
       'Look [b]here[/b]',
       :bold],
@@ -22,7 +20,7 @@ module BBRuby
       :italics],
     'Underline' => [
       /\[u(:.+)?\](.*?)\[\/u\1?\]/mi,
-      '<u>\2</u>',
+      '<span style="text-decoration:underline;">\2</span>',
       'Underline',
       'Use it for [u]important[/u] things or something',
       :underline],
@@ -126,13 +124,13 @@ module BBRuby
       /\[quote(:.*)?=(?:&quot;)?(.*?)(?:&quot;)?\](.*?)\[\/quote\1?\]/mi,
       '<fieldset><legend>\2</legend><blockquote>\3</blockquote></fieldset>',
       'Quote with citation',
-      "[quote=mike]Now is the time...[/quote]",
+      '[quote=mike]Now is the time...[/quote]',
       :quote],
     'Quote (Sourceless)' => [
       /\[quote(:.*)?\](.*?)\[\/quote\1?\]/mi,
       '<fieldset><blockquote>\2</blockquote></fieldset>',
       'Quote (sourceclass)',
-      "[quote]Now is the time...[/quote]",
+      '[quote]Now is the time...[/quote]',
       :quote],
     'Link' => [
       /\[url=(?:&quot;)?(.*?)(?:&quot;)?\](.*?)\[\/url\]/mi,
@@ -144,13 +142,19 @@ module BBRuby
       /\[url\](.*?)\[\/url\]/mi,
       '<a href="\1">\1</a>',
       'Hyperlink (implied)',
-      "Maybe try looking on [url]http://google.com[/url]",
+      'Maybe try looking on [url]http://google.com[/url]',
       :link],
     'Link (Automatic)' => [
-      /(\A|\s)((https?:\/\/|www\.)[^\s<]+)/,
+      %r{(\A|\s)(https?://[^\s<]+)},
       ' <a href="\2">\2</a>',
       'Hyperlink (automatic)',
       'Maybe try looking on http://www.google.com',
+      :link],
+    'Link (Automatic without leading http(s))' => [
+      /(\A|\s)(www\.[^\s<]+)/,
+      ' <a href="http://\2">\2</a>',
+      'Hyperlink (automatic without leading http(s))',
+      'Maybe try looking on www.google.com',
       :link],
     'Image (Resized)' => [
       /\[img(:.+)? size=#{@@quote_matcher}(\d+)x(\d+)\2\](.*?)\[\/img\1?\]/im,
@@ -164,6 +168,12 @@ module BBRuby
       'Display an image (alternative format)',
       '[img=http://myimage.com/logo.gif]',
       :image],
+    'Image (Aligned)' => [
+      /\[img(:.+)? align=(left|right)\](.*?)\[\/img\1?\]/im,
+      '<img src="\3" alt="" style="float: \2;" />',
+      'Display an aligned image',
+      '[img align=right]http://catsweekly.com/crazycat.jpg[/img]',
+      :image],
     'Image' => [
       /\[img(:.+)?\]([^\[\]].*?)\.(#{@@imageformats})(\?[^\]]+)?\[\/img\1?\]/im,
       '<img src="\2.\3\4" alt="" />',
@@ -171,7 +181,7 @@ module BBRuby
       'Check out this crazy cat: [img]http://catsweekly.com/crazycat.jpg[/img]',
       :image],
     'YouTube' => [
-      /\[youtube\](.*?)\?v=([\w\d\-]+).*\[\/youtube\]/im,
+      /\[youtube\](.*?)\?v=([\w\d\-]+).*?\[\/youtube\]/im,
       # '<object width="400" height="330"><param name="movie" value="http://www.youtube.com/v/\2"></param><param name="wmode" value="transparent"></param><embed src="http://www.youtube.com/v/\2" type="application/x-shockwave-flash" wmode="transparent" width="400" height="330"></embed></object>',
       '<object width="320" height="265"><param name="movie" value="http://www.youtube.com/v/\2"></param><param name="allowFullScreen" value="true"></param><param name="allowscriptaccess" value="always"></param><embed src="http://www.youtube.com/v/\2" type="application/x-shockwave-flash" allowscriptaccess="always" allowfullscreen="true" width="320" height="265"></embed></object>',
       'Display a video from YouTube.com',
@@ -197,11 +207,47 @@ module BBRuby
       '[gvideo]http://video.google.com/videoplay?docid=-2200109535941088987[/gvideo]',
       :video],
     'Email' => [
-      /\[email(:.+)?\](.+)\[\/email\1?\]/i,
-      '<a href="mailto:\2">\2</a>',
+      %r{\[email[^:=]?\](((?!\[/email\]).)*)\[/email\]}mi,
+      '<a href="mailto:\1">\1</a>',
       'Link to email address',
       '[email]wadus@wadus.com[/email]',
-      :email]
+      :email],
+    'Email (alternative)' => [
+      %r{\[email[:=]([^\]]+)\](((?!\[/email\]).)*)(\[/email\1?\])?}mi,
+      '<a href="mailto:\1">\2</a>',
+      'Link to email address',
+      '[email:wadus@wadus.com]Email Me[/email]',
+      :email],
+    'Align' => [
+      /\[align=(.*?)\](.*?)\[\/align\]/mi,
+      "<span class=\"bb-ruby_align_\\1\" style=\"float:\\1;\">\\2</span>",
+      'Align this object using float',
+      'Here\'s a wrapped image: [align=right][img]image.png[/img][/align]',
+      :align],
+    'Left' => [
+      /\[left(:.+)?\](.*?)\[\/left\1?\]/mi,
+      "<div style=\"text-align: left;\">\\2</div>",
+      'Aligns contents along the left side',
+      '[left]Left-aligned content[/left]',
+      :left],
+    'Center' => [
+      /\[center(:.+)?\](.*?)\[\/center\1?\]/mi,
+      "<div style=\"text-align: center;\">\\2</div>",
+      'Aligns contents on the center',
+      '[center]Centered content[/center]',
+      :center],
+    'Right' => [
+      /\[right(:.+)?\](.*?)\[\/right\1?\]/mi,
+      "<div style=\"text-align: right;\">\\2</div>",
+      'Aligns contents along the right side',
+      '[right]Right-aligned content[/right]',
+      :right],
+    'Line break' => [
+      /\[br\]/mi,
+      "<br />",
+      'Inserts line break tag',
+      'One[br]Two[br]Three lines!',
+      :br]
   }
 
   class << self
@@ -246,7 +292,6 @@ module BBRuby
 
       # parse spacing
       text.gsub!( /\r\n?/, "\n" )
-      text.gsub!( /\n/, "<br />\n" )
 
       # return markup
       text
@@ -289,13 +334,29 @@ module BBRuby
       # parse bbcode tags
       case method
       when :enable
-        tags_definition.each_value { |t| text.gsub!(t[0], t[1]) if tags.include?(t[4]) }
+        tags_definition.each_value do |t|
+          gsub!(text, t[0], t[1]) if tags.include?( t[4] )
+        end
       when :disable
         # this works nicely because the default is disable and the default set of tags is [] (so none disabled) :)
-        tags_definition.each_value { |t| text.gsub!(t[0], t[1]) unless tags.include?(t[4]) }
+        tags_definition.each_value do |t|
+          gsub!(text, t[0], t[1]) unless tags.include?( t[4] )
+        end
       end
 
       text
+    end
+
+    def gsub!(text, pattern, replacement)
+      if replacement.class == String
+        # just replace if replacement is String
+        while text.gsub!( pattern, replacement ); end
+      else
+        # call replacement
+        # It may be Proc or lambda with one argument
+        # Argument is MatchData. See 'Bold' tag name for example.
+        while text.gsub!( pattern ){ replacement.call($~) }; end
+      end
     end
 
     # extracted from Rails ActionPack
@@ -306,7 +367,7 @@ module BBRuby
       text.gsub!(/\n\n+/, "</p>\n\n#{start_tag}")  # 2+ newline  => paragraph
       text.gsub!(/([^\n]\n)(?=[^\n])/, '\1<br />')  # 1 newline   => br
       text.insert 0, start_tag
-      text << "</p>"
+      text << '</p>'
     end
   end # class << self
 

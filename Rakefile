@@ -9,4 +9,8 @@ Rake::TestTask.new(:test) do |t|
   t.verbose = false
 end
 
+<<<<<<< HEAD
 task :default => :test
+=======
+task :default => :test
+>>>>>>> upstream/master

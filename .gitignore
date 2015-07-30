@@ -7,3 +7,5 @@ debug.log
 config
 script
 .DS_Store
+*.gem
+vendor/
